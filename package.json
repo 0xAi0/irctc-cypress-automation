@@ -1,20 +1,21 @@
 {
-  "name": "irctc-cypress-automation",
-  "version": "3.0.4",
-  "description": "IRCTC Ticket Booking",
+  "name": "irctc-playwright-automation",
+  "version": "4.0.0",
+  "description": "IRCTC Ticket Booking Automation with Playwright",
   "scripts": {
     "start-captha-server": "python irctc-captcha-solver/app-server.py --host 0.0.0.0 --port 5000",
     "wait-for-captha-server-to-come-up": "wait-on http://localhost:5000",
-    "start-irctc-booking": "cypress run --headed --no-exit",
+    "start-irctc-booking": "playwright test --headed",
     "start-booking": "concurrently \"npm run start-captha-server\" \"npm run wait-for-captha-server-to-come-up && npm run start-irctc-booking\"",
-    "test": "cypress run"
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:install": "playwright install chromium"
   },
   "author": "Shivam Pandey",
   "license": "ISC",
   "dependencies": {
-    "cypress": "13.7.1",
+    "@playwright/test": "^1.54.2",
     "dayjs": "^1.11.10",
-    "fs.promises": "^0.1.2",
     "wait-on": "^8.0.1"
   },
   "devDependencies": {
