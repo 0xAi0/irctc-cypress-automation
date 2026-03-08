@@ -5,6 +5,8 @@ import {
 } from "../utils";
 
 const MANUAL_CAPTCHA = Cypress.env("MANUAL_CAPTCHA");
+const CAPTCHA_SOLVER_URL = "http://localhost:5000/extract-text";
+const MAX_CAPTCHA_ATTEMPTS = 120;
 
 Cypress.on("uncaught:exception", (err, runnable) => {
     // returning false here prevents Cypress from failing the test
@@ -58,30 +60,20 @@ function performLogin(LOGGED_IN) {
                     // Use the local server to solve the captcha
                     cy.get(".captcha-img")
                     .invoke("attr", "src")
-                    .then((value) => {
-                        // API call to retrieve captcha value
-                        cy.request({
-                            method: "POST",
-                            url: "http://localhost:5000/extract-text", // URL of the Flask server endpoint
-                            body: {
-                                image: value, // Assuming `value` is your base64 image string
-                            },
-                        }).then((response) => {
-                            const extractedText = response.body.extracted_text; // Access the extracted text from the server response
-                            cy.get("#captcha")
-                            .clear()
-                            .type(extractedText)
-                            .type("{enter}");
+                    .then(requestCaptchaText)
+                    .then((extractedText) => {
+                        cy.get("#captcha")
+                        .clear()
+                        .type(extractedText)
+                        .type("{enter}");
 
-                            cy.get("body").then((el) => {
-                                if (el[0].innerText.includes("Invalid Captcha")) {
-                                    performLogin(false);
-                                } else if (el[0].innerText.includes("Logout")) {
-                                    performLogin(true);
-                                } else {
-                                    performLogin(false);
-                                }
-                            });
+                        getBodyText().then((bodyText) => {
+                            if (bodyText.includes("Logout")) {
+                                performLogin(true);
+                                return;
+                            }
+
+                            performLogin(false);
                         });
                     });
                 }
@@ -92,86 +84,88 @@ function performLogin(LOGGED_IN) {
     }
 }
 
-let MAX_ATTEMPT = 120;
 // function to solveCaptcha after logging in
 
-function solveCaptcha() {
-    MAX_ATTEMPT -= 1;
-    cy.wrap(MAX_ATTEMPT, { timeout: 10000 }).should("be.gt", 0);
+function solveCaptcha(attemptsLeft = MAX_CAPTCHA_ATTEMPTS) {
+    cy.wrap(attemptsLeft, { timeout: 10000 }).should("be.gt", 0);
 
     cy.wait(500);
-    cy.get("body")
-    .should("be.visible")
-    .then((el) => {
+    getBodyText().then((bodyText) => {
         if (
-            el[0].innerText.includes(
+            bodyText.includes(
                 "Unable to process current transaction"
             ) &&
-            el[0].innerText.includes("Payment Mode")
+            bodyText.includes("Payment Mode")
         ) {
             cy.get(".train_Search").click();
             cy.wait(1000);
         }
 
-        if (el[0].innerText.includes("Sorry!!! Please Try again!!")) {
+        if (bodyText.includes("Sorry!!! Please Try again!!")) {
             throw new Error("Sorry!!! Please Try again!! <<< Thrown By IRCTC");
         }
 
-        if (el[0].innerText.includes("Payment Methods")) {
+        if (bodyText.includes("Payment Methods")) {
             return;
         }
 
-        if (el[0].innerText.includes("No seats available")) {
+        if (bodyText.includes("No seats available")) {
             cy.fail("Further execution stopped because there are no more tickets.");
         }
 
         if (
-            el[0].innerText.includes("Your ticket will be sent to") &&
-            !el[0].innerText.includes("Please Wait...") &&
-            el[0].innerHTML.includes("Enter Captcha")
+            bodyText.includes("Your ticket will be sent to") &&
+            !bodyText.includes("Please Wait...") &&
+            bodyText.includes("Enter Captcha")
         ) {
             if (MANUAL_CAPTCHA) {
                 cy.get("#captcha").focus();
-                cy.get("body").then((el) => {
-                    if (el[0].innerText.includes("Payment Methods")) {
+                getBodyText().then((latestBodyText) => {
+                    if (latestBodyText.includes("Payment Methods")) {
                         cy.task("log", "Bypassed Captcha");
                     }
                 });
             } else {
                 cy.get(".captcha-img")
                 .invoke("attr", "src")
-                .then((value) => {
-                    // Use the local server to solve the captcha
-                    cy.request({
-                        method: "POST",
-                        url: "http://localhost:5000/extract-text", // URL of the Flask server endpoint
-                        body: {
-                            image: value, // Assuming `value` is your base64 image string
-                        },
-                    }).then((response) => {
-                        const extractedText = response.body.extracted_text;
-                        cy.get("#captcha")
-                        .clear()
-                        .type(extractedText)
-                        .type("{enter}");
+                .then(requestCaptchaText)
+                .then((extractedText) => {
+                    cy.get("#captcha")
+                    .clear()
+                    .type(extractedText)
+                    .type("{enter}");
 
-                        cy.get("body").then((el) => {
-                            if (el[0].innerText.includes("Payment Methods")) {
-                                cy.task("log", "Bypassed Captcha");
-                            } else {
-                                solveCaptcha();
-                            }
-                        });
+                    getBodyText().then((latestBodyText) => {
+                        if (latestBodyText.includes("Payment Methods")) {
+                            cy.task("log", "Bypassed Captcha");
+                        } else {
+                            solveCaptcha(attemptsLeft - 1);
+                        }
                     });
                 });
-                solveCaptcha();
             }
-        } else if (el[0].innerText.includes("Payment Methods")) {
+        } else if (bodyText.includes("Payment Methods")) {
             return;
         } else {
-            solveCaptcha();
+            solveCaptcha(attemptsLeft - 1);
         }
     });
+}
+
+function requestCaptchaText(imageSource) {
+    return cy
+        .request({
+            method: "POST",
+            url: CAPTCHA_SOLVER_URL,
+            body: {
+                image: imageSource,
+            },
+        })
+        .its("body.extracted_text");
+}
+
+function getBodyText() {
+    return cy.get("body").should("be.visible").invoke("text");
 }
 
 function BOOK_UNTIL_TATKAL_OPENS(
