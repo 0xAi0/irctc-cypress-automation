@@ -1,6 +1,6 @@
 ![Please Favourite This Project Before Reading (1)](https://github.com/shivamguys/irctc-cypress-automation/assets/25263989/1fe791dc-d320-42dd-99c9-d33fd034525b)
 
-# IRCTC Tatkal Cypress Automation !
+# IRCTC Tatkal Playwright Automation !
 
 ### Now book your tatkal tickets under 1 min at ease by bypassing captcha and filling multiple passenger details at once. Let the script book it for you.
 
@@ -13,9 +13,9 @@
 
 > [!NOTE] 
 > ```
-> This Cypress script for automating IRCTC ticket booking
+> This Playwright script for automating IRCTC ticket booking
 > is created strictly for educational purposes. The code and its
-> usage are intended to showcase Cypress testing capabilities and
+> usage are intended to showcase Playwright automation capabilities and
 > best practices. Any attempt to use this script for unauthorized
 > access or activities that violate IRCTC terms of service or legal
 > regulations is strictly prohibited. The author(s) and associated
@@ -39,7 +39,7 @@
 
 
 
-## Features it has right now?
+## Features
 
 -  ✓ Can book **Tatkal**, **Premium Tatkal** and **Normal Tickets** as well.
 -  ✓ Can book tickets for you if you open even **2-3 minutes** before tatkal time.
@@ -219,6 +219,47 @@ You should get below output.
 
 ```
 npm install # <---- Make Sure You Run This Command From Code Folder. 
-npm run start-booking <---------- This will first bring up captha server then starts booking 
+npm run start-booking <---------- Starts captcha server, then executes Playwright booking flow 
 ```
 
+
+
+## Playwright Migration Notes
+
+- Cypress-based runtime commands have been migrated to Playwright test runner under `playwright/tests/irctc.spec.js`.
+- Shared booking input data still comes from `cypress/fixtures/passenger_data.json` to avoid breaking existing data setup.
+- Use `npm run test:install` once to install Chromium for Playwright.
+- Main booking run command is now `npm run start-irctc-booking`.
+
+## Playwright Python + Brave (Remote Debugging) Mode
+
+Yes — this can be beneficial for real booking runs because it allows you to attach to a persistent Brave profile/session (cookies, login continuity, reduced anti-bot friction).
+
+### 1) Install Python dependencies
+
+```bash
+pip install -r playwright_python/requirements.txt
+python -m playwright install chromium
+```
+
+### 2) Start Brave with remote debugging enabled
+
+Linux example:
+
+```bash
+brave-browser --remote-debugging-port=9222 --user-data-dir=/tmp/irctc-brave-profile
+```
+
+### 3) Run the Python Playwright automation (attach mode)
+
+```bash
+export USERNAME="your_irctc_username"
+export PASSWORD="your_irctc_password"
+python playwright_python/irctc_booking.py --cdp-url http://127.0.0.1:9222
+```
+
+Use manual captcha mode if needed:
+
+```bash
+python playwright_python/irctc_booking.py --manual-captcha
+```
